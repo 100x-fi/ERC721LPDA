@@ -16,22 +16,22 @@ contract ERC721LPDA_Test is BaseTest {
 
   ERC721LPDA private erc721lpda;
 
+  uint256 private constant maxSupply = 10000;
+
   uint256 private startBlock;
   uint256 private endBlock;
 
-  uint256 private startPrice;
-  uint256 private floorPrice;
+  uint256 private constant startPrice = 88 ether;
+  uint256 private constant floorPrice = 8 ether;
 
   function setUp() public {
     startBlock = block.number + 100;
     endBlock = block.number + 200;
 
-    startPrice = 88 ether;
-    floorPrice = 8 ether;
-
     erc721lpda = new ERC721LPDA(
       "ERC721LPDA",
       "LPDA",
+      maxSupply,
       startBlock,
       endBlock,
       startPrice,
@@ -48,6 +48,10 @@ contract ERC721LPDA_Test is BaseTest {
     vm.roll(startBlock);
     vm.expectRevert(abi.encodeWithSignature("ERC721LPDA_BadArguments()"));
     erc721lpda.bid(1);
+
+    // bid more than maxSupply
+    vm.expectRevert(abi.encodeWithSignature("ERC721LPDA_BadArguments()"));
+    erc721lpda.bid{ value: startPrice * (maxSupply + 1) }(maxSupply + 1);
 
     // bid after auction end
     vm.roll(endBlock + 1);
@@ -78,7 +82,7 @@ contract ERC721LPDA_Test is BaseTest {
     assertEq(_isRefunded, 0);
   }
 
-  function testCorrectness_refund() external {
+  function testCorrectness_refundWhenSomeoneBidAtFloor() external {
     // give some ethers to TESTERs
     vm.deal(TESTER1, 88888 ether);
     vm.deal(TESTER2, 88888 ether);
@@ -120,7 +124,7 @@ contract ERC721LPDA_Test is BaseTest {
     assertEq(erc721lpda.refund(TESTER3), 0);
   }
 
-  function testCorrectness_refundMany() external {
+  function testCorrectness_refundManyWhenSomeoneBidAtFloor() external {
     // give some ethers to TESTERs
     vm.deal(TESTER1, 88888 ether);
     vm.deal(TESTER2, 88888 ether);
@@ -163,6 +167,37 @@ contract ERC721LPDA_Test is BaseTest {
     assertEq(erc721lpda.refund(TESTER1), 0);
     assertEq(erc721lpda.refund(TESTER2), 0);
     assertEq(erc721lpda.refund(TESTER3), 0);
+  }
+
+  function testCorrectness_refundWhenNooneBidAtFloor() external {
+    // give some ethers to TESTERs
+    vm.deal(TESTER1, 88888 ether);
+    vm.deal(TESTER2, 88888 ether);
+    vm.deal(TESTER3, 88888 ether);
+
+    // TESTER1 bid at startBlock
+    vm.roll(startBlock);
+    vm.prank(TESTER1);
+    erc721lpda.bid{ value: 100 ether }(1);
+
+    // TESTER2 bid at startBlock + 50
+    vm.roll(startBlock + 50);
+    vm.prank(TESTER2);
+    erc721lpda.bid{ value: 100 ether }(1);
+
+    vm.stopPrank();
+
+    // roll to endBlock + 1
+    vm.roll(endBlock + 1);
+
+    // TESTER1 and TESTER2 should be refunded at floor price
+    // as it is not sold out
+    assertEq(erc721lpda.refund(TESTER1), 88 ether - 8 ether);
+    assertEq(erc721lpda.refund(TESTER2), 48 ether - 8 ether);
+
+    // try refund again
+    assertEq(erc721lpda.refund(TESTER1), 0);
+    assertEq(erc721lpda.refund(TESTER2), 0);
   }
 
   function testCorrectness_withdrawETH() external {

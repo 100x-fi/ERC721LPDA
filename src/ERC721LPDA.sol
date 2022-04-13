@@ -15,6 +15,9 @@ contract ERC721LPDA is Ownable, ReentrancyGuard, ERC721A {
   error ERC721LPDA_UnableToSendETH();
   error ERC721LPDA_WithdrawNotAllow();
 
+  // --- general NFT drop states ---
+  uint256 public maxSupply;
+
   // --- dutch auction states ---
   uint256 public startBlock;
   uint256 public endBlock;
@@ -37,6 +40,7 @@ contract ERC721LPDA is Ownable, ReentrancyGuard, ERC721A {
   constructor(
     string memory _name,
     string memory _symbol,
+    uint256 _maxSupply,
     uint256 _startBlock,
     uint256 _endblock,
     uint256 _startPrice,
@@ -45,6 +49,7 @@ contract ERC721LPDA is Ownable, ReentrancyGuard, ERC721A {
     if (_endblock < _startBlock || _floorPrice > _startPrice)
       revert ERC721LPDA_BadArguments();
 
+    maxSupply = _maxSupply;
     startBlock = _startBlock;
     endBlock = _endblock;
     startPrice = _startPrice;
@@ -68,7 +73,8 @@ contract ERC721LPDA is Ownable, ReentrancyGuard, ERC721A {
       revert ERC721LPDA_OutOfWindow();
 
     uint256 _cost = _amount * price();
-    if (msg.value < _cost) revert ERC721LPDA_BadArguments();
+    if (msg.value < _cost || totalSupply() + _amount > maxSupply)
+      revert ERC721LPDA_BadArguments();
 
     // SLOAD
     Minter storage _minter = dutchAuctionMinters[msg.sender];
@@ -99,7 +105,13 @@ contract ERC721LPDA is Ownable, ReentrancyGuard, ERC721A {
     Minter storage _minter = dutchAuctionMinters[_user];
 
     // Check
-    if (block.number <= endBlock) return 0;
+    // If not sold out
+    if (totalSupply() != maxSupply) {
+      // If not end, then no refund yet
+      if (block.number <= endBlock) return 0;
+      // If ended and not sold out, then lastPrice is the floor price
+      lastPrice = floorPrice;
+    }
 
     if (_minter.isRefunded == 1) return 0;
 
