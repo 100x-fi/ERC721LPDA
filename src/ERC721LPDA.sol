@@ -110,7 +110,8 @@ contract ERC721LPDA is Ownable, ReentrancyGuard, ERC721A {
       // If not end, then no refund yet
       if (block.number <= endBlock) return 0;
       // If ended and not sold out, then lastPrice is the floor price
-      lastPrice = floorPrice;
+      uint256 _floorPrice = floorPrice;
+      if (lastPrice != _floorPrice) lastPrice = _floorPrice;
     }
 
     if (_minter.isRefunded == 1) return 0;

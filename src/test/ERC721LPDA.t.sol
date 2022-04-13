@@ -114,8 +114,8 @@ contract ERC721LPDA_Test is BaseTest {
 
     // TESTER1 and TESTER2 should be refunded
     // TESTER3 paid at last price, hence no refund
-    assertEq(erc721lpda.refund(TESTER1), 88 ether - 8 ether);
-    assertEq(erc721lpda.refund(TESTER2), 48 ether - 8 ether);
+    assertEq(erc721lpda.refund(TESTER1), 88 ether - floorPrice);
+    assertEq(erc721lpda.refund(TESTER2), 48 ether - floorPrice);
     assertEq(erc721lpda.refund(TESTER3), 0);
 
     // try refund again
@@ -190,10 +190,13 @@ contract ERC721LPDA_Test is BaseTest {
     // roll to endBlock + 1
     vm.roll(endBlock + 1);
 
+    // lastPrice must not floor price
+    assertGt(erc721lpda.lastPrice(), floorPrice);
+
     // TESTER1 and TESTER2 should be refunded at floor price
     // as it is not sold out
-    assertEq(erc721lpda.refund(TESTER1), 88 ether - 8 ether);
-    assertEq(erc721lpda.refund(TESTER2), 48 ether - 8 ether);
+    assertEq(erc721lpda.refund(TESTER1), 88 ether - floorPrice);
+    assertEq(erc721lpda.refund(TESTER2), 48 ether - floorPrice);
 
     // try refund again
     assertEq(erc721lpda.refund(TESTER1), 0);
@@ -230,6 +233,8 @@ contract ERC721LPDA_Test is BaseTest {
     erc721lpda.withdrawETH(TREASURY);
     assertEq(TREASURY.balance, 8 ether * 3);
 
+    // After owner withdraw, there should be enough liquidity
+    // for all users to refund.
     // TESTER1 and TESTER2 should be refunded
     // TESTER3 paid at last price, hence no refund
     address[] memory _testers = new address[](3);
